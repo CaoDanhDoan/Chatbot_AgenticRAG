@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Code of Ethics and Conduct</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: 'Roboto', sans-serif;
+        }
+        body {
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: #fff;
+            overflow: hidden;
+        }
+
+        .header {
+            background-color: #FF6A13;
+            color: #ffffff;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 500;
+            flex: 0 0 auto;
+            border-bottom: 3px solid #e65c10;
+        }
+
+        .chat-box {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            padding: 25px;
+            background-color: #f9f9f9;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .chat-box::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-box::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .chat-box::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 10px;
+        }
+        .chat-box::-webkit-scrollbar-thumb:hover {
+            background: #999;
+        }
+
+        .input-area {
+            flex: 0 0 auto;
+            display: flex;
+            border-top: 1px solid #ddd;
+            padding: 15px;
+            background-color: #ffffff;
+        }
+        .user-input {
+            flex: 1;
+            padding: 12px 18px;
+            font-size: 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 25px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .user-input:focus {
+            border-color: #FF6A13;
+            box-shadow: 0 0 5px rgba(255, 106, 19, 0.3);
+            outline: none;
+        }
+        .button {
+            margin-left: 10px;
+            padding: 12px 25px;
+            background-color: #FF6A13;
+            color: #fff;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .button:hover {
+            background-color: #e65c10;
+        }
+        .button:active {
+            transform: scale(0.98);
+        }
+
+        .message {
+            margin-bottom: 0;
+            padding: 12px 18px;
+            border-radius: 20px;
+            font-size: 16px;
+            max-width: 80%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            line-height: 1.5;
+        }
+        .message .sender {
+            font-weight: 500;
+            margin-bottom: 5px;
+            display: block;
+            opacity: 0.8;
+        }
+        .user-message {
+            background-color: #c9e8ff;
+            border-left: 5px solid #009CDE;
+            align-self: flex-end;
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+        .chatbot-message {
+            background-color: #f1f1f1;
+            border-left: 5px solid #0db14b;
+            align-self: flex-start;
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+        .chatbot-message strong {
+            font-weight: 700;
+            color: #0db14b;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">HỎI ĐÁP VỀ QUY TẮC ĐẠO ĐỨC TRONG FSOFT</div>
+
+        <div class="chat-box" id="chat-box">
+            </div>
+
+        <div class="input-area">
+            <input type="text" id="question" class="user-input" placeholder="Hỏi gì đó..."/>
+            <button class="button">Gửi</button>
+        </div>
+    </div>
+
+    <script>
+        const input = document.getElementById('question');
+        const sendBtn = document.querySelector('.button');
+        const chatBox = document.getElementById('chat-box');
+        let loadingMsg = null;
+        let history = []; 
+
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                askQuestion();
+            }
+        });
+        sendBtn.addEventListener('click', askQuestion);
+
+        function askQuestion() {
+            const text = input.value.trim();
+            if (!text) return;
+
+            const userMsg = document.createElement('div');
+            userMsg.className = 'message user-message';
+            userMsg.innerHTML = `<span class="sender">Bạn:</span> ${text}`;
+            chatBox.appendChild(userMsg);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            input.value = '';
+            input.disabled = true;
+            sendBtn.disabled = true;
+
+            loadingMsg = document.createElement('div');
+            loadingMsg.className = 'message chatbot-message loading';
+            loadingMsg.innerHTML = `<span class="sender">BOT:</span> Đang trả lời...`;
+            chatBox.appendChild(loadingMsg);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            fetch('https://9bf95a586641.ngrok-free.app/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: text, history: history })
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('Server lỗi');
+                return res.json();
+            })
+            .then(data => {
+                if (loadingMsg) loadingMsg.remove();
+
+                history = data.history;
+
+                const botMsg = document.createElement('div');
+                botMsg.className = 'message chatbot-message';
+                botMsg.innerHTML = `<span class="sender">BOT:</span> ${data.answer}`;
+                chatBox.appendChild(botMsg);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            })
+            .catch(err => {
+                console.error(err);
+                if (loadingMsg) loadingMsg.remove();
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'message chatbot-message';
+                errorMsg.innerHTML = `<span class="sender">BOT:</span> Đã xảy ra lỗi, vui lòng thử lại.`;
+                chatBox.appendChild(errorMsg);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            })
+            .finally(() => {
+                input.disabled = false;
+                sendBtn.disabled = false;
+                input.focus();
+            });
+        }
+    </script>
+</body>
+</html>

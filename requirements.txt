@@ -1,0 +1,9 @@
+langchain-google-genai
+chromadb
+sentence-transformers
+langchain
+langgraph
+flask
+flask-cors
+pyngrok
+google-api-python-client
