@@ -1,22 +1,23 @@
 from chains.prompts import GRADE_PROMPT
 from consts import gemini_strong_llm
+from utils_retry import call_with_backoff
+
 def grade_documents_node(state):
     print("Đánh giá Tài liệu...")
-    question = state["question"]
-    documents = state.get("documents", [])
-    full_query = state.get("full_query", question)
+    q = state["question"]
+    docs = state.get("documents", [])
+    full_q = state.get("full_query", q)
     history = state.get("history", [])
-    history_context = "\n".join([f"Câu hỏi: {h['question']}\nCâu trả lời: {h['answer']}" for h in history])
-    new_state = state.copy()
-    if not documents:
-        print(" > Không tìm thấy tài liệu nội bộ, cần tìm kiếm web.")
+    hist = "\n".join([f"Câu hỏi: {h['question']}\nCâu trả lời: {h['answer']}" for h in history])
+
+    if not docs:
+        print(" > Không có tài liệu → cân nhắc web.")
         return {"web_search_required": True, "documents": [], "history": history}
-    grader_chain = GRADE_PROMPT | gemini_strong_llm
-    response = grader_chain.invoke({"question": question, "full_query": full_query, "documents": "\n\n".join(documents), "history_context": history_context})
-    response_content_str = str(response.content)
-    if "CÓ" in response_content_str.upper():
-        print(" > Tài liệu nội bộ liên quan.")
-        return {"web_search_required": False, "documents": documents, "history": history}
-    else:
-        print(" > Tài liệu nội bộ không liên quan, cần tìm kiếm web.")
-        return {"web_search_required": True, "documents": documents, "history": history}
+
+    chain = GRADE_PROMPT | gemini_strong_llm
+    def _invoke(): return chain.invoke({"question": q, "full_query": full_q,
+                                        "documents": "\n\n".join(docs), "history_context": hist})
+    resp = call_with_backoff(_invoke)
+    ok = "CÓ" in (resp.content or "").upper()
+    print(" > Tài liệu", "liên quan." if ok else "chưa đủ thông tin, cần bổ sung.")
+    return {"web_search_required": not ok, "documents": docs, "history": history}
