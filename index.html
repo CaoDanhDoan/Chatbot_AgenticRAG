@@ -159,80 +159,200 @@
 
         <div class="input-area">
             <input type="text" id="question" class="user-input" placeholder="Hỏi gì đó..."/>
-            <button class="button">Gửi</button>
+            <button id="sendBtn" class="button">Gửi</button>
         </div>
     </div>
 
-    <script>
-        const input = document.getElementById('question');
-        const sendBtn = document.querySelector('.button');
-        const chatBox = document.getElementById('chat-box');
-        let loadingMsg = null;
-        let history = []; 
+<script>
+    const input   = document.getElementById('question');
+    const sendBtn = document.getElementById('sendBtn');   
+    const chatBox = document.getElementById('chat-box');
 
-        input.addEventListener('keydown', e => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                askQuestion();
-            }
-        });
-        sendBtn.addEventListener('click', askQuestion);
+    let history  = [];
+    let threadId = null;
+    let loadingMsg = null;  
 
-        function askQuestion() {
-            const text = input.value.trim();
-            if (!text) return;
+    const API = 'https://6d914adaacaa.ngrok-free.app/ask';   
 
-            const userMsg = document.createElement('div');
-            userMsg.className = 'message user-message';
-            userMsg.innerHTML = `<span class="sender">Bạn:</span> ${text}`;
-            chatBox.appendChild(userMsg);
-            chatBox.scrollTop = chatBox.scrollHeight;
+    function addMsg(sender, html, cls='chatbot-message') {
+        const m = document.createElement('div');
+        m.className = `message ${cls}`; 
+        m.innerHTML = `<span class="sender">${sender}:</span> ${html}`;
+        chatBox.appendChild(m);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        return m;
+    }
+    function setDisabled(disabled) {
+        input.disabled = disabled; sendBtn.disabled = disabled;
+        if (!disabled) input.focus();
+    }
+    function setLoading(on) {
+        if (on) loadingMsg = addMsg('BOT', 'Đang trả lời...', 'chatbot-message loading');
+        else if (loadingMsg) { loadingMsg.remove(); loadingMsg = null; }
+    }
+    function escapeHtml(s) {
+        return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;')
+          .replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;");
+    }
+    function escapeAttr(s) { return escapeHtml(s).replaceAll('`','&#96;'); }
 
-            input.value = '';
-            input.disabled = true;
-            sendBtn.disabled = true;
+    // --- Gửi câu hỏi ---
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); askQuestion(); }
+    });
+    sendBtn.addEventListener('click', askQuestion);
 
-            loadingMsg = document.createElement('div');
-            loadingMsg.className = 'message chatbot-message loading';
-            loadingMsg.innerHTML = `<span class="sender">BOT:</span> Đang trả lời...`;
-            chatBox.appendChild(loadingMsg);
-            chatBox.scrollTop = chatBox.scrollHeight;
+    async function askQuestion() {
+        const text = input.value.trim();
+        if (!text) return;
 
-            fetch('https://9bf95a586641.ngrok-free.app/ask', {
+        addMsg('Bạn', escapeHtml(text), 'user-message');
+        input.value = '';
+        setDisabled(true); setLoading(true);
+
+        const payload = {
+            question: text,
+            history: Array.isArray(history) ? history : [],
+            thread_id: threadId ?? null
+        };
+
+        try {
+            const res = await fetch(API, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: text, history: history })
-            })
-            .then(res => {
-                if (!res.ok) throw new Error('Server lỗi');
-                return res.json();
-            })
-            .then(data => {
-                if (loadingMsg) loadingMsg.remove();
-
-                history = data.history;
-
-                const botMsg = document.createElement('div');
-                botMsg.className = 'message chatbot-message';
-                botMsg.innerHTML = `<span class="sender">BOT:</span> ${data.answer}`;
-                chatBox.appendChild(botMsg);
-                chatBox.scrollTop = chatBox.scrollHeight;
-            })
-            .catch(err => {
-                console.error(err);
-                if (loadingMsg) loadingMsg.remove();
-                const errorMsg = document.createElement('div');
-                errorMsg.className = 'message chatbot-message';
-                errorMsg.innerHTML = `<span class="sender">BOT:</span> Đã xảy ra lỗi, vui lòng thử lại.`;
-                chatBox.appendChild(errorMsg);
-                chatBox.scrollTop = chatBox.scrollHeight;
-            })
-            .finally(() => {
-                input.disabled = false;
-                sendBtn.disabled = false;
-                input.focus();
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(payload),
+                mode: 'cors',
+                cache: 'no-cache'
             });
+
+            if (!res.ok) {
+                // Xử lý lỗi HTTP, lấy message nếu có
+                let errorData = await res.json().catch(() => ({ message: 'Server lỗi' }));
+                throw new Error(errorData.message);
+            }
+
+            const data = await res.json();
+            handleResponse(data);
+        } catch (err) {
+            showError(err);
+        } finally {
+            setDisabled(false);
         }
-    </script>
+    }
+
+    async function resumeFlow(resumePayload) {
+        setDisabled(true); setLoading(true);
+        const payload = { thread_id: threadId, resume: resumePayload };
+
+        try {
+            const res = await fetch(API, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(payload),
+                mode: 'cors',
+                cache: 'no-cache'
+            });
+
+            if (!res.ok) {
+                let errorData = await res.json().catch(() => ({ message: 'Server lỗi' }));
+                throw new Error(errorData.message);
+            }
+
+            const data = await res.json();
+            handleResponse(data);
+
+        } catch (err) {
+            showError(err);
+        } finally {
+            setDisabled(false);
+        }
+    }
+
+    // --- Xử lý response: OK | INTERRUPTED | ERROR ---
+    function handleResponse(data) {
+        setLoading(false);
+        if (data.thread_id) threadId = data.thread_id;
+
+        if (data.status === 'INTERRUPTED' && Array.isArray(data.interrupts) && data.interrupts.length) {
+            data.interrupts.forEach(renderInterrupt);
+            return;
+        }
+
+        if (data.status === 'OK') {
+            history = data.history || history;
+            addMsg('BOT', data.answer || '');
+            return;
+        }
+
+        showError(new Error(data.message || 'Đã xảy ra lỗi.'));
+    }
+
+    // --- Render UI cho từng loại interrupt ---
+    function renderInterrupt(intp) {
+        if (intp.type === 'edit_query') {
+            const wrap = document.createElement('div');
+            wrap.className = 'message chatbot-message';
+            wrap.innerHTML = `
+              <span class="sender">BOT:</span>
+              <div style="margin-top:6px">${escapeHtml(intp.message || 'Sửa truy vấn?')}</div>
+              <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+                <input id="editQueryInput" class="user-input" style="flex:1; padding:8px 12px;" value="${escapeAttr(intp.full_query || '')}">
+                <button id="btnApplyQuery" class="button">Cập nhật</button>
+                <button id="btnSkipQuery" class="button" style="background:#888">Giữ nguyên</button>
+              </div>`;
+            chatBox.appendChild(wrap); chatBox.scrollTop = chatBox.scrollHeight;
+
+            wrap.querySelector('#btnApplyQuery').onclick = () => {
+                const val = /** @type {HTMLInputElement} */(wrap.querySelector('#editQueryInput')).value.trim();
+                resumeFlow(val || ''); wrap.remove();
+            };
+            wrap.querySelector('#btnSkipQuery').onclick = () => { resumeFlow(''); wrap.remove(); };
+            return;
+        }
+
+        if (intp.type === 'review_answer') {
+            const wrap = document.createElement('div');
+            wrap.className = 'message chatbot-message';
+            wrap.innerHTML = `
+              <span class="sender">BOT:</span>
+              <div style="margin-top:6px">${escapeHtml(intp.message || 'Duyệt câu trả lời?')}</div>
+              <div style="margin:10px 0; padding:10px; background:#fff; border:1px solid #eee; border-radius:10px; max-height:240px; overflow:auto;">
+                ${intp.draft || ''}
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                <button id="btnApprove" class="button">Duyệt</button>
+                <button id="btnReject" class="button" style="background:#d33">Yêu cầu bổ sung</button>
+                <div style="display:flex; gap:8px; width:100%; align-items:center;">
+                  <input id="editNote" class="user-input" placeholder="Ghi chú chỉnh sửa (tuỳ chọn)" style="flex:1; padding:8px 12px;">
+                  <button id="btnEdit" class="button" style="background:#555">Chỉnh & sinh lại</button>
+                </div>
+              </div>`;
+            chatBox.appendChild(wrap); chatBox.scrollTop = chatBox.scrollHeight;
+
+            wrap.querySelector('#btnApprove').onclick = () => { resumeFlow('approve'); wrap.remove(); };
+            wrap.querySelector('#btnReject').onclick  = () => { resumeFlow('reject');  wrap.remove(); };
+            wrap.querySelector('#btnEdit').onclick    = () => {
+                const note = /** @type {HTMLInputElement} */(wrap.querySelector('#editNote')).value.trim();
+                resumeFlow({ action: 'edit', note }); wrap.remove();
+            };
+            return;
+        }
+
+        // Không rõ loại -> approve mặc định
+        resumeFlow('approve');
+    }
+
+    function showError(err) {
+        console.error(err);
+        setLoading(false);
+        addMsg('BOT', 'Đã xảy ra lỗi, vui lòng thử lại.');
+    }
+</script>
 </body>
 </html>
