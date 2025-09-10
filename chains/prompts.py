@@ -10,10 +10,15 @@ SEARCH_QUERY_PROMPT = ChatPromptTemplate.from_messages([
 ])
 
 GRADE_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", "Bạn là người đánh giá sự liên quan của tài liệu. Dựa trên câu hỏi gốc, lịch sử hội thoại và truy vấn đã tối ưu, nếu tài liệu trả lời được câu hỏi thì trả lời 'CÓ', nếu không thì trả lời 'KHÔNG'."),
-    ("human", "Lịch sử hội thoại:\n{history_context}\n\nCâu hỏi gốc: {question}\n\nTruy vấn đã tối ưu: {full_query}\n\nTài liệu:\n{documents}")
+    ("system",
+     "Bạn là một chuyên gia đánh giá tài liệu. Nhiệm vụ của bạn là phân tích tài liệu được cung cấp và xác định xem nó có chứa thông tin hữu ích để trả lời câu hỏi hay không.\n"
+     "Căn cứ vào câu hỏi, lịch sử hội thoại và tài liệu, hãy đưa ra đánh giá của bạn.\n"
+     "Trả lời DUY NHẤT một trong các lựa chọn sau:\n"
+     " - **CÓ** (nếu tài liệu cung cấp đủ thông tin để trả lời câu hỏi).\n"
+     " - **KHÔNG** (nếu tài liệu hoàn toàn không liên quan).\n"
+     " - **MỘT PHẦN** (nếu tài liệu chỉ chứa một phần thông tin liên quan hoặc có thể làm nguồn bổ sung cho một câu trả lời hoàn chỉnh)."),
+    ("human", "Lịch sử hội thoại:\n{history_context}\n\nCâu hỏi: {question}\n\nTruy vấn tối ưu: {full_query}\n\nĐoạn tài liệu:\n{documents}")
 ])
-
 
 GENERATE_PROMPT_WITH_DOCS = ChatPromptTemplate.from_messages([
     ("system", "Bạn là một trợ lý AI chuyên nghiệp và thân thiện của FPT Software, có kiến thức sâu rộng về các quy tắc và chính sách của FPT Software. "
