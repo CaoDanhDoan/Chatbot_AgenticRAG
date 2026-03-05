@@ -2,7 +2,7 @@
 
 **LangGraph + Chroma Cloud + Gemini**
 
-Hệ thống Chatbot RAG dạng Agentic cho phép:
+Hệ thống Chatbot RAG dạng Agent cho phép:
 
 * 🔎 Truy xuất tài liệu nội bộ từ Chroma Cloud
 * 🌐 Tìm kiếm Web qua Google Custom Search (CSE)
